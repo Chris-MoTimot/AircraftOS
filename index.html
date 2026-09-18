@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aircraft Operating System - VX-01 Cockpit Avionics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        aero: {
+                            bg: '#050811',
+                            panel: '#0a101f',
+                            card: '#0f172a',
+                            border: '#1e2d4a',
+                            cyan: '#00f0ff',
+                            green: '#00ff88',
+                            amber: '#ffb700',
+                            red: '#ff3355',
+                            dim: '#475569',
+                            text: '#cbd5e1'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Share Tech Mono', 'monospace'],
+                        display: ['Rajdhani', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for dark tech aesthetic */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050811;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e2d4a;
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f0ff;
+        }
+
+        body {
+            background-color: #050811;
+            color: #cbd5e1;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .glow-cyan {
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+        }
+        .glow-border-cyan {
+            border-color: rgba(0, 240, 255, 0.4);
+            box-shadow: inset 0 0 10px rgba(0, 240, 255, 0.1), 0 0 10px rgba(0, 240, 255, 0.15);
+        }
+        .glow-text-cyan {
+            text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+        }
+        .glow-text-amber {
+            text-shadow: 0 0 8px rgba(255, 183, 0, 0.6);
+        }
+        .glow-text-green {
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+        }
+
+        /* Scanline Overlay Effect */
+        .scanlines {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        /* Radar Sweep Animation */
+        @keyframes sweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .radar-sweep-line {
+            animation: sweep 4s linear infinite;
+            transform-origin: center center;
+        }
+
+        /* Tab Content Transition */
+        .tab-content {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.25s ease-in-out;
+        }
+        .tab-content.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Custom UI Switch Style */
+        .tech-button {
+            position: relative;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid #1e2d4a;
+            transition: all 0.2s ease;
+        }
+        .tech-button:hover {
+            border-color: #00f0ff;
+            background: rgba(0, 240, 255, 0.08);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+            color: #ffffff;
+        }
+        .tech-button:active {
+            transform: scale(0.98);
+        }
+        .tech-button.active-nav {
+            border-color: #00f0ff;
+            background: linear-gradient(90deg, rgba(0, 240, 255, 0.15) 0%, rgba(15, 23, 42, 0.4) 100%);
+            border-left-width: 4px;
+            color: #00f0ff;
+        }
+
+        /* Pulse Animations */
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between p-2 md:p-3 bg-aero-bg relative select-none">
+
+    <!-- Scanline Visual Grid Overlay -->
+    <div class="scanlines absolute inset-0 z-50 opacity-30"></div>
+
+    <div id="loading-screen" class="fixed inset-0 bg-aero-bg z-[100] flex flex-col items-center justify-center p-6 transition-opacity duration-700">
+        <div class="max-w-md w-full bg-aero-panel border border-aero-cyan/40 p-6 rounded-lg glow-border-cyan text-center relative">
+            <div class="flex items-center justify-center mb-4 space-x-3">
+                <svg class="w-10 h-10 text-aero-cyan animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <div class="text-left">
+                    <h1 class="text-xl font-bold font-display tracking-widest text-white glow-text-cyan">AIRCRAFT OS</h1>
+                    <p class="text-xs text-aero-cyan">VX-01 AVIONICS SYSTEM v4.8</p>
+                </div>
+            </div>
+            
+            <div class="w-full bg-aero-bg h-2 rounded-full border border-aero-border overflow-hidden my-4">
+                <div id="boot-progress" class="bg-aero-cyan h-full w-0 transition-all duration-300"></div>
+            </div>
+
+            <div id="boot-status" class="text-xs text-aero-dim h-6 tracking-wide uppercase">Initializing System Diagnostics...</div>
+        </div>
+    </div>
+
+    <!-- 1. TOP BAR -->
+    <header class="bg-aero-panel border border-aero-border rounded-lg p-2.5 mb-2 flex flex-wrap items-center justify-between text-xs font-mono relative z-10 gap-2">
+        <!-- Aircraft Identification -->
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2 border-r border-aero-border pr-3">
+                <svg class="w-5 h-5 text-aero-cyan" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21,16V14L13,9V3.5A1.5,1.5 0 0,0 11.5,2A1.5,1.5 0 0,0 10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5L21,16Z"/>
+                </svg>
+                <span class="text-base font-bold font-display text-white tracking-wider">AIRCRAFT OS <span class="text-aero-cyan">[VX-01]</span></span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="text-aero-dim">FLT PHASE:</span>
+                <span id="top-flight-phase" class="bg-aero-cyan/20 text-aero-cyan border border-aero-cyan/50 px-2 py-0.5 rounded font-bold tracking-wider">CRUISE</span>
+            </div>
+        </div>
+
+        <!-- Clocks & Operational Time -->
+        <div class="flex items-center space-x-4 border-x border-aero-border px-4 py-0.5">
+            <div>
+                <span class="text-aero-dim">LOCAL:</span>
+                <span id="top-local-time" class="text-white font-bold ml-1">00:00:00</span>
+            </div>
+            <div>
+                <span class="text-aero-dim">UTC:</span>
+                <span id="top-utc-time" class="text-aero-cyan font-bold ml-1">00:00:00 Z</span>
+            </div>
+        </div>
+
+        <!-- System & Link Status -->
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-aero-green animate-pulse"></span>
+                <span class="text-aero-dim">SATCOM:</span>
+                <span class="text-aero-green font-bold">LINK 16 [ACTIVE]</span>
+            </div>
+            <div class="flex items-center space-x-1.5 border-l border-aero-border pl-3">
+                <span class="text-aero-dim">SYS DIAG:</span>
+                <span id="top-sys-health" class="text-aero-green font-bold">NOMINAL (99.4%)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE CONTAINER -->
+    <div class="flex-1 flex flex-col md:flex-row gap-2 overflow-hidden relative z-10">
+
+        <!-- 2. LEFT NAVIGATION -->
+        <nav class="w-full md:w-48 bg-aero-panel border border-aero-border rounded-lg p-2 flex md:flex-col justify-between md:justify-start gap-1 overflow-x-auto md:overflow-y-auto shrink-0">
+            <button onclick="switchTab('flight')" id="nav-flight" class="tech-button active-nav w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>1. FLIGHT</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">PFD</span>
+            </button>
+            <button onclick="switchTab('nav')" id="nav-nav" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>2. NAVIGATION</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">MAP</span>
+            </button>
+            <button onclick="switchTab('engine')" id="nav-engine" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>3. ENGINE</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">ENG</span>
+            </button>
+            <button onclick="switchTab('fuel')" id="nav-fuel" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>4. FUEL</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">QTY</span>
+            </button>
+            <button onclick="switchTab('weather')" id="nav-weather" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>5. WEATHER</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">WX</span>
+            </button>
+            <button onclick="switchTab('comms')" id="nav-comms" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>6. COMMUNICATION</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">COM</span>
+            </button>
+            <button onclick="switchTab('systems')" id="nav-systems" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>7. SYSTEMS</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">SYS</span>
+            </button>
+            <button onclick="switchTab('logs')" id="nav-logs" class="tech-button w-full py-2 px-3 rounded text-left text-xs font-bold tracking-wider flex items-center justify-between">
+                <span>8. LOGS</span>
+                <span class="text-[10px] text-aero-dim hidden md:inline">LOG</span>
+            </button>
+
+            <!-- Global Action Control Panel -->
+            <div class="mt-auto hidden md:flex flex-col gap-2 pt-3 border-t border-aero-border">
+                <button onclick="toggleSimulation()" id="btn-pause" class="tech-button w-full py-1.5 px-2 rounded text-center text-xs font-bold text-aero-amber border-aero-amber/40 hover:bg-aero-amber/10">
+                    PAUSE SIMULATION
+                </button>
+                <button onclick="toggleAutoflight()" id="btn-autoflight" class="tech-button w-full py-1.5 px-2 rounded text-center text-xs font-bold text-aero-cyan border-aero-cyan/40 hover:bg-aero-cyan/10">
+                    AUTO FLIGHT: ON
+                </button>
+                <button onclick="runSystemCheck()" id="btn-syscheck" class="tech-button w-full py-1.5 px-2 rounded text-center text-xs font-bold text-aero-green border-aero-green/40 hover:bg-aero-green/10">
+                    SYSTEM CHECK
+                </button>
+            </div>
+        </nav>
+
+        <!-- VIEW CONTAINER -->
+        <main class="flex-1 bg-aero-panel border border-aero-border rounded-lg p-3 overflow-y-auto flex flex-col relative">
+
+            <!-- TAB 1: PRIMARY FLIGHT DISPLAY (FLIGHT) -->
+            <section id="tab-flight" class="tab-content active flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-cyan rounded-full"></span>
+                        <span>PRIMARY FLIGHT DISPLAY (PFD)</span>
+                    </h2>
+                    <span class="text-xs text-aero-dim">EFIS MODE: NORM</span>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 flex-1">
+                    <!-- Left Strip: Airspeed & Altitude Metrics -->
+                    <div class="bg-aero-card border border-aero-border rounded p-3 flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs text-aero-dim uppercase tracking-wider mb-1">Airspeed (IAS)</div>
+                            <div class="flex items-baseline space-x-2">
+                                <span id="pfd-airspeed" class="text-3xl font-bold font-display text-aero-cyan glow-text-cyan">465</span>
+                                <span class="text-xs text-aero-dim">KTS</span>
+                            </div>
+                            <div class="w-full bg-aero-bg h-1.5 rounded mt-2 overflow-hidden border border-aero-border">
+                                <div id="pfd-speed-bar" class="bg-aero-cyan h-full w-[75%]"></div>
+                            </div>
+                        </div>
+
+                        <div class="my-4">
+                            <div class="text-xs text-aero-dim uppercase tracking-wider mb-1">Vertical Speed (VS)</div>
+                            <div class="flex items-baseline space-x-2">
+                                <span id="pfd-vspeed" class="text-2xl font-bold font-display text-aero-green">+120</span>
+                                <span class="text-xs text-aero-dim">FT/MIN</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="text-xs text-aero-dim uppercase tracking-wider mb-1">Barometric Altitude</div>
+                            <div class="flex items-baseline space-x-2">
+                                <span id="pfd-altitude" class="text-3xl font-bold font-display text-aero-cyan glow-text-cyan">34,000</span>
+                                <span class="text-xs text-aero-dim">FT</span>
+                            </div>
+                            <div class="w-full bg-aero-bg h-1.5 rounded mt-2 overflow-hidden border border-aero-border">
+                                <div id="pfd-alt-bar" class="bg-aero-cyan h-full w-[68%]"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Center: Artificial Horizon Canvas Display -->
+                    <div class="bg-aero-card border border-aero-border rounded p-2 flex flex-col items-center justify-center relative min-h-[260px]">
+                        <div class="absolute top-2 left-2 text-[10px] text-aero-dim">ARTIFICIAL HORIZON</div>
+                        <canvas id="horizonCanvas" width="300" height="240" class="w-full h-full max-w-[320px] max-h-[260px]"></canvas>
+                        
+                        <!-- Telemetry Overlay Badges -->
+                        <div class="absolute bottom-3 left-3 bg-aero-bg/80 border border-aero-border px-2 py-1 rounded text-[11px]">
+                            PITCH: <span id="pfd-pitch-val" class="text-aero-cyan font-bold">+1.5°</span>
+                        </div>
+                        <div class="absolute bottom-3 right-3 bg-aero-bg/80 border border-aero-border px-2 py-1 rounded text-[11px]">
+                            ROLL: <span id="pfd-roll-val" class="text-aero-cyan font-bold">-0.8°</span>
+                        </div>
+                    </div>
+
+                    <!-- Right Strip: Heading & Target Navigation -->
+                    <div class="bg-aero-card border border-aero-border rounded p-3 flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs text-aero-dim uppercase tracking-wider mb-1">Magnetic Heading</div>
+                            <div class="flex items-baseline space-x-2">
+                                <span id="pfd-heading" class="text-3xl font-bold font-display text-white">078°</span>
+                                <span class="text-xs text-aero-cyan">ENE</span>
+                            </div>
+                            <div class="text-xs text-aero-dim mt-2">TARGET HDG: <span class="text-white">078°</span></div>
+                        </div>
+
+                        <div class="space-y-2 border-t border-b border-aero-border py-3 my-2">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-aero-dim">MACH NO:</span>
+                                <span id="pfd-mach" class="text-white font-bold">M 0.78</span>
+                            </div>
+                            <div class="flex justify-between text-xs">
+                                <span class="text-aero-dim">GROUND SPEED:</span>
+                                <span id="pfd-gs" class="text-white font-bold">482 KTS</span>
+                            </div>
+                            <div class="flex justify-between text-xs">
+                                <span class="text-aero-dim">ANGLE OF ATTACK:</span>
+                                <span id="pfd-aoa" class="text-aero-green font-bold">2.4°</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="text-xs text-aero-dim mb-1">FLIGHT DIRECTORY</div>
+                            <div class="text-xs text-aero-green bg-aero-green/10 border border-aero-green/30 px-2 py-1.5 rounded flex items-center justify-between">
+                                <span>NAV1 / LNAV ENGAGED</span>
+                                <span class="w-2 h-2 rounded-full bg-aero-green animate-pulse"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: NAVIGATION MAP -->
+            <section id="tab-nav" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-cyan rounded-full"></span>
+                        <span>TACTICAL NAVIGATION MAP (ND)</span>
+                    </h2>
+                    <span class="text-xs text-aero-cyan">MODE: MAP / RANGE: 80 NM</span>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 flex-1">
+                    <!-- Map Canvas Display Area -->
+                    <div class="lg:col-span-3 bg-aero-card border border-aero-border rounded p-1 relative min-h-[320px] flex items-center justify-center overflow-hidden">
+                        <svg id="navMapSvg" class="w-full h-full min-h-[300px]" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice">
+                            <!-- Grid Background Lines -->
+                            <defs>
+                                <pattern id="mapGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e2d4a" stroke-width="0.5" stroke-dasharray="2 2"/>
+                                </pattern>
+                            </defs>
+                            <rect width="600" height="400" fill="#050811"/>
+                            <rect width="600" height="400" fill="url(#mapGrid)"/>
+
+                            <!-- Distance Concentric Circles -->
+                            <circle cx="300" cy="200" r="60" fill="none" stroke="#1e2d4a" stroke-width="1"/>
+                            <circle cx="300" cy="200" r="120" fill="none" stroke="#1e2d4a" stroke-width="1"/>
+                            <circle cx="300" cy="200" r="180" fill="none" stroke="#1e2d4a" stroke-width="0.5" stroke-dasharray="4 4"/>
+
+                            <!-- Flight Planned Route Line -->
+                            <polyline points="100,320 220,240 300,200 440,140 520,80" fill="none" stroke="#00f0ff" stroke-width="2" stroke-dasharray="6 3"/>
+
+                            <!-- Waypoints -->
+                            <g class="text-[10px] fill-aero-dim font-mono">
+                                <polygon points="100,315 105,325 95,325" fill="#00f0ff"/>
+                                <text x="110" y="325" fill="#00f0ff">WAYPT-ALPHA</text>
+
+                                <polygon points="220,235 225,245 215,245" fill="#00f0ff"/>
+                                <text x="230" y="245" fill="#00f0ff">WAYPT-BRAVO</text>
+
+                                <polygon points="440,135 445,145 435,145" fill="#ffb700"/>
+                                <text x="450" y="145" fill="#ffb700">WAYPT-CHARLIE</text>
+
+                                <polygon points="520,75 525,85 515,85" fill="#00ff88"/>
+                                <text x="530" y="85" fill="#00ff88">DEST: WIII (CGK)</text>
+                            </g>
+
+                            <!-- Animated Radar Sweep Cone -->
+                            <g transform="translate(300, 200)">
+                                <g class="radar-sweep-line">
+                                    <path d="M 0 0 L 180 -90 A 200 200 0 0 0 0 -200 Z" fill="rgba(0, 240, 255, 0.08)"/>
+                                    <line x1="0" y1="0" x2="0" y2="-200" stroke="#00f0ff" stroke-width="1.5" opacity="0.7"/>
+                                </g>
+                            </g>
+
+                            <!-- Aircraft SVG Marker at Center -->
+                            <g id="aircraft-map-icon" transform="translate(300, 200) rotate(45)">
+                                <path d="M0,-14 L4,8 L14,12 L14,15 L4,12 L2,18 L5,21 L5,23 L0,21 L-5,23 L-5,21 L-2,18 L-4,12 L-14,15 L-14,12 L-4,8 Z" fill="#ffffff" stroke="#00f0ff" stroke-width="1"/>
+                                <circle cx="0" cy="0" r="2" fill="#00f0ff"/>
+                            </g>
+                        </svg>
+
+                        <!-- Floating HUD Overlay -->
+                        <div class="absolute top-3 left-3 bg-aero-panel/90 border border-aero-border p-2 rounded text-xs space-y-1">
+                            <div>NEXT WAYPOINT: <span class="text-aero-cyan font-bold">WAYPT-CHARLIE</span></div>
+                            <div>DIST REMAINING: <span id="nav-dist" class="text-white font-bold">142 NM</span></div>
+                            <div>ETA DEST: <span class="text-aero-green font-bold">14:42 UTC</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Right Flight Route Waypoints List -->
+                    <div class="bg-aero-card border border-aero-border rounded p-3 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xs font-bold text-aero-dim uppercase tracking-wider mb-3">FLIGHT PLAN WAYPOINTS</h3>
+                            <div class="space-y-2 text-xs">
+                                <div class="p-2 rounded bg-aero-bg border border-aero-border flex justify-between items-center opacity-60">
+                                    <div>
+                                        <div class="font-bold text-white">WAYPT-ALPHA</div>
+                                        <div class="text-[10px] text-aero-dim">ALT: 28,000 FT</div>
+                                    </div>
+                                    <span class="text-aero-dim text-[10px]">PASSED</span>
+                                </div>
+                                <div class="p-2 rounded bg-aero-bg border border-aero-border flex justify-between items-center opacity-60">
+                                    <div>
+                                        <div class="font-bold text-white">WAYPT-BRAVO</div>
+                                        <div class="text-[10px] text-aero-dim">ALT: 34,000 FT</div>
+                                    </div>
+                                    <span class="text-aero-dim text-[10px]">PASSED</span>
+                                </div>
+                                <div class="p-2 rounded bg-aero-cyan/10 border border-aero-cyan flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold text-aero-cyan">WAYPT-CHARLIE</div>
+                                        <div class="text-[10px] text-aero-dim">ALT: 34,000 FT</div>
+                                    </div>
+                                    <span class="text-aero-cyan text-[10px] font-bold animate-pulse">NEXT</span>
+                                </div>
+                                <div class="p-2 rounded bg-aero-bg border border-aero-border flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold text-white">WIII (JAKARTA)</div>
+                                        <div class="text-[10px] text-aero-dim">DESTINATION</div>
+                                    </div>
+                                    <span class="text-aero-dim text-[10px]">IN 142 NM</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-aero-border text-xs">
+                            <div class="text-aero-dim">CROSSWIND VECTOR</div>
+                            <div class="text-white font-bold">240° / 18 KTS</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: ENGINE MONITOR -->
+            <section id="tab-engine" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-green rounded-full"></span>
+                        <span>TURBOFAN ENGINE TELEMETRY</span>
+                    </h2>
+                    <span class="text-xs text-aero-green">POWER PLANT STATUS: NORMAL</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                    <!-- Engine 01 -->
+                    <div class="bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="flex justify-between items-center border-b border-aero-border pb-2">
+                            <span class="text-base font-bold font-display text-white">ENGINE 01 [LEFT PORT]</span>
+                            <span class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                        </div>
+
+                        <div class="space-y-3 my-3">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">N1 RPM SPEED</span>
+                                    <span id="eng1-rpm" class="text-aero-cyan font-bold">92.4 %</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div id="eng1-rpm-bar" class="bg-aero-cyan h-full w-[92.4%]"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">EGT (EXHAUST TEMP)</span>
+                                    <span id="eng1-temp" class="text-aero-green font-bold">642 °C</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div id="eng1-temp-bar" class="bg-aero-green h-full w-[64%]"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">OIL PRESSURE</span>
+                                    <span id="eng1-press" class="text-white font-bold">58 PSI</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div class="bg-aero-cyan h-full w-[58%]"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">FUEL FLOW</span>
+                                    <span id="eng1-ff" class="text-white font-bold">2,450 LBS/HR</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div class="bg-aero-cyan h-full w-[70%]"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] text-aero-dim bg-aero-bg p-2 rounded border border-aero-border flex justify-between">
+                            <span>VIBRATION: 0.12 IPS</span>
+                            <span>IGNITION: AUTO</span>
+                        </div>
+                    </div>
+
+                    <!-- Engine 02 -->
+                    <div class="bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="flex justify-between items-center border-b border-aero-border pb-2">
+                            <span class="text-base font-bold font-display text-white">ENGINE 02 [RIGHT STBD]</span>
+                            <span class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                        </div>
+
+                        <div class="space-y-3 my-3">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">N1 RPM SPEED</span>
+                                    <span id="eng2-rpm" class="text-aero-cyan font-bold">92.1 %</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div id="eng2-rpm-bar" class="bg-aero-cyan h-full w-[92.1%]"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">EGT (EXHAUST TEMP)</span>
+                                    <span id="eng2-temp" class="text-aero-green font-bold">638 °C</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div id="eng2-temp-bar" class="bg-aero-green h-full w-[63.8%]"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">OIL PRESSURE</span>
+                                    <span id="eng2-press" class="text-white font-bold">59 PSI</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div class="bg-aero-cyan h-full w-[59%]"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-aero-dim">FUEL FLOW</span>
+                                    <span id="eng2-ff" class="text-white font-bold">2,440 LBS/HR</span>
+                                </div>
+                                <div class="w-full bg-aero-bg h-2 rounded overflow-hidden border border-aero-border">
+                                    <div class="bg-aero-cyan h-full w-[69.5%]"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] text-aero-dim bg-aero-bg p-2 rounded border border-aero-border flex justify-between">
+                            <span>VIBRATION: 0.11 IPS</span>
+                            <span>IGNITION: AUTO</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: FUEL SYSTEM -->
+            <section id="tab-fuel" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-cyan rounded-full"></span>
+                        <span>FUEL MANAGEMENT & DISTRIBUTION</span>
+                    </h2>
+                    <span class="text-xs text-aero-cyan">X-FEED: CLOSED</span>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 flex-1">
+                    <!-- Fuel Tanks Overview Grid -->
+                    <div class="lg:col-span-2 bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between">
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <!-- Left Tank -->
+                            <div class="bg-aero-bg p-3 rounded border border-aero-border flex flex-col justify-between">
+                                <span class="text-xs text-aero-dim">LEFT TANK</span>
+                                <span id="fuel-left-val" class="text-2xl font-bold font-display text-aero-cyan my-2">14,200 LBS</span>
+                                <div class="w-full bg-aero-panel h-20 rounded border border-aero-border relative overflow-hidden flex items-end">
+                                    <div id="fuel-left-bar" class="bg-aero-cyan/40 border-t-2 border-aero-cyan w-full h-[68%] transition-all duration-500"></div>
+                                </div>
+                                <span class="text-[10px] text-aero-dim mt-2">PUMPS: ACTIVE</span>
+                            </div>
+
+                            <!-- Center Tank -->
+                            <div class="bg-aero-bg p-3 rounded border border-aero-border flex flex-col justify-between">
+                                <span class="text-xs text-aero-dim">CENTER TANK</span>
+                                <span id="fuel-center-val" class="text-2xl font-bold font-display text-aero-cyan my-2">18,500 LBS</span>
+                                <div class="w-full bg-aero-panel h-20 rounded border border-aero-border relative overflow-hidden flex items-end">
+                                    <div id="fuel-center-bar" class="bg-aero-cyan/40 border-t-2 border-aero-cyan w-full h-[68%] transition-all duration-500"></div>
+                                </div>
+                                <span class="text-[10px] text-aero-dim mt-2">PUMPS: AUTO</span>
+                            </div>
+
+                            <!-- Right Tank -->
+                            <div class="bg-aero-bg p-3 rounded border border-aero-border flex flex-col justify-between">
+                                <span class="text-xs text-aero-dim">RIGHT TANK</span>
+                                <span id="fuel-right-val" class="text-2xl font-bold font-display text-aero-cyan my-2">14,200 LBS</span>
+                                <div class="w-full bg-aero-panel h-20 rounded border border-aero-border relative overflow-hidden flex items-end">
+                                    <div id="fuel-right-bar" class="bg-aero-cyan/40 border-t-2 border-aero-cyan w-full h-[68%] transition-all duration-500"></div>
+                                </div>
+                                <span class="text-[10px] text-aero-dim mt-2">PUMPS: ACTIVE</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-aero-bg rounded border border-aero-border flex justify-between items-center text-xs">
+                            <div>TOTAL FUEL ONBOARD: <span id="fuel-total" class="text-aero-cyan font-bold text-sm ml-2">46,900 LBS</span></div>
+                            <div>FUEL TEMP: <span class="text-white font-bold">-18 °C</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Consumption & Endurance calculations -->
+                    <div class="bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between space-y-3">
+                        <div>
+                            <h3 class="text-xs font-bold text-aero-dim uppercase tracking-wider mb-3">FLIGHT ENDURANCE COMPUTATIONS</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="text-xs text-aero-dim">TOTAL CONSUMPTION RATE</div>
+                                    <div id="fuel-flow-rate" class="text-xl font-bold font-display text-white">4,890 LBS/HR</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-aero-dim">ESTIMATED ENDURANCE</div>
+                                    <div id="fuel-endurance" class="text-xl font-bold font-display text-aero-green">09 HRS 35 MINS</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-aero-dim">ESTIMATED RANGE REMAINING</div>
+                                    <div class="text-xl font-bold font-display text-white">4,460 NM</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-aero-bg rounded border border-aero-border text-xs space-y-1">
+                            <div class="flex justify-between">
+                                <span class="text-aero-dim">RESERVE FUEL:</span>
+                                <span class="text-white font-bold">8,500 LBS</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-aero-dim">DUMP SYSTEM:</span>
+                                <span class="text-aero-dim">ARMED / READY</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: WEATHER -->
+            <section id="tab-weather" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-cyan rounded-full"></span>
+                        <span>WEATHER RADAR & ATMOSPHERICS</span>
+                    </h2>
+                    <span class="text-xs text-aero-cyan">WX RADAR: GAIN AUTO</span>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 flex-1">
+                    <!-- Weather Conditions Widget -->
+                    <div class="bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <div>
+                                <span class="text-xs text-aero-dim">OUTSIDE AIR TEMP (OAT)</span>
+                                <div id="wx-temp" class="text-3xl font-bold font-display text-aero-cyan glow-text-cyan">-48 °C</div>
+                            </div>
+                            <div>
+                                <span class="text-xs text-aero-dim">WIND VECTOR</span>
+                                <div id="wx-wind" class="text-2xl font-bold font-display text-white">240° AT 28 KTS</div>
+                            </div>
+                            <div>
+                                <span class="text-xs text-aero-dim">ATMOSPHERIC TURBULENCE</span>
+                                <div id="wx-turb" class="text-lg font-bold font-display text-aero-amber">MODERATE CAT @ FL340</div>
+                            </div>
+                            <div>
+                                <span class="text-xs text-aero-dim">VISIBILITY</span>
+                                <div class="text-lg font-bold font-display text-aero-green">UNRESTRICTED (>10KM)</div>
+                            </div>
+                        </div>
+
+                        <div class="p-2 bg-aero-bg rounded border border-aero-border text-xs text-aero-dim">
+                            QNH ALTIMETER: <span class="text-white font-bold">1013 HPA / 29.92 INHG</span>
+                        </div>
+                    </div>
+
+                    <!-- Weather Sweep Visualizer Canvas -->
+                    <div class="lg:col-span-2 bg-aero-card border border-aero-border rounded p-3 flex flex-col items-center justify-center relative min-h-[250px]">
+                        <div class="absolute top-3 left-3 text-xs text-aero-dim">DOPPLER METEOROLOGICAL SCAN</div>
+                        <canvas id="wxCanvas" width="400" height="250" class="w-full h-full max-h-[280px]"></canvas>
+                        <div class="absolute bottom-3 right-3 text-[10px] text-aero-dim flex items-center space-x-2">
+                            <span class="flex items-center"><span class="w-2 h-2 bg-green-500 mr-1"></span>LIGHT</span>
+                            <span class="flex items-center"><span class="w-2 h-2 bg-yellow-500 mr-1"></span>MOD</span>
+                            <span class="flex items-center"><span class="w-2 h-2 bg-red-500 mr-1"></span>HEAVY</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: COMMUNICATION -->
+            <section id="tab-comms" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-green rounded-full"></span>
+                        <span>COMMUNICATIONS & ACARS FREQUENCIES</span>
+                    </h2>
+                    <span class="text-xs text-aero-green">XPDR: 4721 ALT ON</span>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
+                    <!-- Radio Frequencies -->
+                    <div class="bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between space-y-4">
+                        <div class="space-y-3">
+                            <h3 class="text-xs font-bold text-aero-dim uppercase tracking-wider">VHF TRANSCEIVERS</h3>
+                            
+                            <div class="p-3 bg-aero-bg rounded border border-aero-cyan/40 flex justify-between items-center">
+                                <div>
+                                    <div class="text-[10px] text-aero-dim">VHF 1 [ACTIVE ATC]</div>
+                                    <div class="text-xl font-bold text-aero-cyan">121.500 MHz</div>
+                                </div>
+                                <span class="bg-aero-cyan/20 text-aero-cyan text-xs px-2 py-1 rounded">CONNECTED</span>
+                            </div>
+
+                            <div class="p-3 bg-aero-bg rounded border border-aero-border flex justify-between items-center">
+                                <div>
+                                    <div class="text-[10px] text-aero-dim">VHF 2 [STANDBY]</div>
+                                    <div class="text-xl font-bold text-white">118.275 MHz</div>
+                                </div>
+                                <button class="tech-button text-xs px-2 py-1 rounded">SWAP</button>
+                            </div>
+
+                            <div class="p-3 bg-aero-bg rounded border border-aero-border flex justify-between items-center">
+                                <div>
+                                    <div class="text-[10px] text-aero-dim">TRANSPONDER CODE</div>
+                                    <div class="text-xl font-bold text-aero-green">4721 (IDENT)</div>
+                                </div>
+                                <span class="text-xs text-aero-dim">MODE S</span>
+                            </div>
+                        </div>
+
+                        <div class="text-xs text-aero-dim pt-2 border-t border-aero-border">
+                            SELCAL CODE: <span class="text-white font-bold">BK-FS</span>
+                        </div>
+                    </div>
+
+                    <!-- ACARS Digital Log -->
+                    <div class="bg-aero-card border border-aero-border rounded p-4 flex flex-col justify-between">
+                        <h3 class="text-xs font-bold text-aero-dim uppercase tracking-wider mb-2">ACARS DATALINK MESSAGES</h3>
+                        <div class="bg-aero-bg border border-aero-border rounded p-3 flex-1 overflow-y-auto space-y-2 font-mono text-xs">
+                            <div class="text-aero-dim">[14:22:01 UTC] ATC: CLRD TO FL340 DIRECT WAYPT-CHARLIE</div>
+                            <div class="text-aero-cyan">[14:25:10 UTC] ACARS: TELEMETRY DISPATCH ACKNOWLEDGED</div>
+                            <div class="text-aero-dim">[14:30:45 UTC] METAR: WIII 180800Z 21012KT 9999 FEW020 31/24 Q1011</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 7: SYSTEMS -->
+            <section id="tab-systems" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-green rounded-full"></span>
+                        <span>SYSTEM SUBSYSTEM MONITORING</span>
+                    </h2>
+                    <span class="text-xs text-aero-green">STATUS: 7/7 NOMINAL</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1">
+                    <!-- Flight Control -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white text-xs">FLIGHT CONTROLS</div>
+                            <div class="text-[10px] text-aero-dim">FLY-BY-WIRE BUS A/B</div>
+                        </div>
+                        <span id="sys-flt-ctrl" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+
+                    <!-- Navigation -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white text-xs">NAVIGATION SYSTEMS</div>
+                            <div class="text-[10px] text-aero-dim">GPS / IRS DUAL ALIGN</div>
+                        </div>
+                        <span id="sys-nav" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+
+                    <!-- Hydraulic -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white text-xs">HYDRAULIC SYSTEM</div>
+                            <div class="text-[10px] text-aero-dim">SYS 1 / 2 / 3 (3000 PSI)</div>
+                        </div>
+                        <span id="sys-hyd" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+
+                    <!-- Electrical -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white text-xs">ELECTRICAL BUS</div>
+                            <div class="text-[10px] text-aero-dim">GEN 1/2 IDG 115V AC</div>
+                        </div>
+                        <span id="sys-elec" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+
+                    <!-- Avionics -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white text-xs">AVIONICS SUITE</div>
+                            <div class="text-[10px] text-aero-dim">PRIMARY COMPUTER MODULES</div>
+                        </div>
+                        <span id="sys-avionics" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+
+                    <!-- Communication -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white text-xs">COMMUNICATIONS</div>
+                            <div class="text-[10px] text-aero-dim">SATCOM / HF / VHF</div>
+                        </div>
+                        <span id="sys-comms" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+
+                    <!-- Landing Gear -->
+                    <div class="bg-aero-card border border-aero-border p-3 rounded flex justify-between items-center md:col-span-2 lg:col-span-3">
+                        <div>
+                            <div class="font-bold text-white text-xs">LANDING GEAR & BRAKES</div>
+                            <div class="text-[10px] text-aero-dim">UP & LOCKED / BRAKE TEMP 120°C</div>
+                        </div>
+                        <span id="sys-gear" class="bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded">NORMAL</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 8: LOGS -->
+            <section id="tab-logs" class="tab-content flex-col h-full gap-3">
+                <div class="flex items-center justify-between border-b border-aero-border pb-2">
+                    <h2 class="text-sm font-bold font-display text-white tracking-widest flex items-center space-x-2">
+                        <span class="w-2 h-2 bg-aero-cyan rounded-full"></span>
+                        <span>FLIGHT DATA & EVENT LOGS</span>
+                    </h2>
+                    <button onclick="clearLogs()" class="text-xs text-aero-amber border border-aero-amber/30 px-2 py-0.5 rounded hover:bg-aero-amber/10">CLEAR LOGS</button>
+                </div>
+
+                <div class="bg-aero-card border border-aero-border rounded p-3 flex-1 overflow-y-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-aero-border text-aero-dim">
+                                <th class="pb-2">TIMESTAMP</th>
+                                <th class="pb-2">TYPE</th>
+                                <th class="pb-2">MESSAGE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table-body" class="divide-y divide-aero-border/40 font-mono">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 9. ALERT CENTER BANNER -->
+            <div class="mt-3 bg-aero-card border border-aero-border rounded p-2.5 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span id="alert-badge" class="bg-aero-cyan/20 text-aero-cyan border border-aero-cyan/40 px-2 py-0.5 rounded text-[10px] font-bold">INFO</span>
+                    <span id="alert-text" class="text-xs text-white">Route updated — WAYPT-CHARLIE aligned for optimal fuel burn</span>
+                </div>
+                <span id="alert-time" class="text-[10px] text-aero-dim">14:32:00 UTC</span>
+            </div>
+        </main>
+    </div>
+
+    <!-- 10. BOTTOM STATUS BAR -->
+    <footer class="bg-aero-panel border border-aero-border rounded-lg p-2 mt-2 flex flex-wrap items-center justify-between text-[11px] font-mono relative z-10 gap-2">
+        <div class="flex items-center space-x-4">
+            <div>LAT: <span id="bot-lat" class="text-white">06°07.5' S</span></div>
+            <div>LONG: <span id="bot-long" class="text-white">106°39.3' E</span></div>
+            <div>ALT: <span id="bot-alt" class="text-aero-cyan font-bold">34,000 FT</span></div>
+            <div>HDG: <span id="bot-hdg" class="text-white">078°</span></div>
+            <div>GS: <span id="bot-gs" class="text-white">482 KTS</span></div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <div>DATA LINK: <span class="text-aero-green font-bold">SYNCED</span></div>
+            <div class="border-l border-aero-border pl-3">SYSTEM HEALTH: <span id="bot-health" class="text-aero-green font-bold">99.4%</span></div>
+        </div>
+    </footer>
+
+    <script>
+        // Flight Telemetry Data State
+        const state = {
+            isPaused: false,
+            autoFlight: true,
+            phase: 'CRUISE',
+            altitude: 34000,
+            airspeed: 465,
+            vspeed: 120,
+            heading: 78,
+            pitch: 1.5,
+            roll: -0.8,
+            lat: -6.1256,
+            lon: 106.6558,
+            fuelTotal: 46900,
+            fuelLeft: 14200,
+            fuelCenter: 18500,
+            fuelRight: 14200,
+            sysHealth: 99.4,
+            navDistance: 142,
+            targetHdg: 78
+        };
+
+        // Simulated Logs History
+        const logHistory = [
+            { time: '14:32:00', type: 'INFO', msg: 'Route updated — WAYPT-CHARLIE aligned for optimal fuel burn' },
+            { time: '14:28:15', type: 'CAUTION', msg: 'Moderate turbulence ahead at FL340 — CAT advice issued' },
+            { time: '14:15:00', type: 'SYSTEM', msg: 'All flight control surface actuators nominal' }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const progress = document.getElementById('boot-progress');
+            const status = document.getElementById('boot-status');
+            const loader = document.getElementById('loading-screen');
+
+            let width = 0;
+            const steps = [
+                'Loading Flight Control Actuators...',
+                'Aligning Dual IRS Gyroscopes...',
+                'Establishing SATCOM Data Link...',
+                'Avionics System Ready.'
+            ];
+
+            const interval = setInterval(() => {
+                width += 25;
+                progress.style.width = width + '%';
+                status.innerText = steps[Math.floor(width / 25) - 1] || steps[0];
+
+                if (width >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        loader.style.opacity = '0';
+                        setTimeout(() => loader.style.display = 'none', 700);
+                    }, 300);
+                }
+            }, 300);
+
+            // Initialize Horizon and Canvas Loop
+            initCanvas();
+            renderLogs();
+            startSimulationLoop();
+        });
+
+        function switchTab(tabId) {
+            // Hide all tab content
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Remove active classes on buttons
+            document.querySelectorAll('nav .tech-button').forEach(el => el.classList.remove('active-nav'));
+
+            // Show selected tab
+            const target = document.getElementById('tab-' + tabId);
+            if (target) target.classList.add('active');
+
+            // Highlight nav button
+            const navBtn = document.getElementById('nav-' + tabId);
+            if (navBtn) navBtn.classList.add('active-nav');
+        }
+
+        function initCanvas() {
+            drawArtificialHorizon();
+            drawWeatherRadar();
+        }
+
+        function drawArtificialHorizon() {
+            const canvas = document.getElementById('horizonCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Clear
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.save();
+            ctx.translate(w / 2, h / 2);
+            ctx.rotate((state.roll * Math.PI) / 180);
+
+            // Pitch offset calculation
+            const pitchOffset = state.pitch * 4;
+
+            // Sky (Blue/Cyan)
+            ctx.fillStyle = '#0a2540';
+            ctx.fillRect(-w, -h * 2 + pitchOffset, w * 2, h * 2);
+
+            // Ground (Dark Amber/Brown tone)
+            ctx.fillStyle = '#1c140a';
+            ctx.fillRect(-w, pitchOffset, w * 2, h * 2);
+
+            // Horizon Line
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-w, pitchOffset);
+            ctx.lineTo(w, pitchOffset);
+            ctx.stroke();
+
+            // Pitch ladder lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            for (let i = -30; i <= 30; i += 10) {
+                if (i === 0) continue;
+                const y = pitchOffset - i * 4;
+                ctx.beginPath();
+                ctx.moveTo(-25, y);
+                ctx.lineTo(25, y);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
+            // Aircraft Reticle / Pitch Symbol (Fixed in Center)
+            ctx.strokeStyle = '#ffb700';
+            ctx.lineWidth = 3;
+            // Left wing
+            ctx.beginPath();
+            ctx.moveTo(w / 2 - 50, h / 2);
+            ctx.lineTo(w / 2 - 20, h / 2);
+            ctx.lineTo(w / 2 - 20, h / 2 + 10);
+            ctx.stroke();
+            // Right wing
+            ctx.beginPath();
+            ctx.moveTo(w / 2 + 50, h / 2);
+            ctx.lineTo(w / 2 + 20, h / 2);
+            ctx.lineTo(w / 2 + 20, h / 2 + 10);
+            ctx.stroke();
+            // Center Dot
+            ctx.fillStyle = '#ffb700';
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawWeatherRadar() {
+            const canvas = document.getElementById('wxCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.fillStyle = '#050811';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid Rings
+            ctx.strokeStyle = '#1e2d4a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(w / 2, h, 60, Math.PI, 0);
+            ctx.arc(w / 2, h, 120, Math.PI, 0);
+            ctx.arc(w / 2, h, 180, Math.PI, 0);
+            ctx.stroke();
+
+            // Weather Cell Blobs
+            ctx.fillStyle = 'rgba(0, 255, 136, 0.25)';
+            ctx.beginPath();
+            ctx.arc(w / 2 - 40, h / 2 - 20, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 183, 0, 0.35)';
+            ctx.beginPath();
+            ctx.arc(w / 2 - 30, h / 2 - 25, 18, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 51, 85, 0.45)';
+            ctx.beginPath();
+            ctx.arc(w / 2 + 60, h / 2 - 40, 22, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function startSimulationLoop() {
+            setInterval(() => {
+                // Update Time Display
+                const now = new Date();
+                document.getElementById('top-local-time').innerText = now.toLocaleTimeString();
+                document.getElementById('top-utc-time').innerText = now.toISOString().substr(11, 8) + ' Z';
+                document.getElementById('alert-time').innerText = now.toISOString().substr(11, 8) + ' UTC';
+
+                if (state.isPaused) return;
+
+                // Micro fluctuations for realistic flight simulation
+                state.altitude += (Math.random() - 0.48) * 10;
+                state.airspeed += (Math.random() - 0.5) * 0.4;
+                state.pitch += (Math.random() - 0.5) * 0.1;
+                state.roll += (Math.random() - 0.5) * 0.2;
+                state.fuelTotal -= 0.12;
+                state.fuelLeft -= 0.06;
+                state.fuelRight -= 0.06;
+                state.navDistance -= 0.01;
+
+                // Boundary clamps
+                state.pitch = Math.max(-5, Math.min(8, state.pitch));
+                state.roll = Math.max(-10, Math.min(10, state.roll));
+
+                // DOM Telemetry updates
+                updateDOM();
+                drawArtificialHorizon();
+
+            }, 400);
+        }
+
+        function updateDOM() {
+            // PFD
+            document.getElementById('pfd-airspeed').innerText = Math.round(state.airspeed);
+            document.getElementById('pfd-altitude').innerText = Math.round(state.altitude).toLocaleString();
+            document.getElementById('pfd-pitch-val').innerText = (state.pitch > 0 ? '+' : '') + state.pitch.toFixed(1) + '°';
+            document.getElementById('pfd-roll-val').innerText = state.roll.toFixed(1) + '°';
+            document.getElementById('pfd-heading').innerText = String(state.heading).padStart(3, '0') + '°';
+
+            // Navigation Map
+            document.getElementById('nav-dist').innerText = Math.round(state.navDistance) + ' NM';
+
+            // Fuel
+            document.getElementById('fuel-total').innerText = Math.round(state.fuelTotal).toLocaleString() + ' LBS';
+            document.getElementById('fuel-left-val').innerText = Math.round(state.fuelLeft).toLocaleString() + ' LBS';
+            document.getElementById('fuel-right-val').innerText = Math.round(state.fuelRight).toLocaleString() + ' LBS';
+
+            // Bottom Status
+            document.getElementById('bot-alt').innerText = Math.round(state.altitude).toLocaleString() + ' FT';
+            document.getElementById('bot-gs').innerText = Math.round(state.airspeed + 17) + ' KTS';
+        }
+
+        function toggleSimulation() {
+            state.isPaused = !state.isPaused;
+            const btn = document.getElementById('btn-pause');
+            if (state.isPaused) {
+                btn.innerText = 'RESUME SIMULATION';
+                btn.classList.add('bg-aero-amber/20');
+                pushAlert('INFO', 'Simulation paused by flight crew');
+            } else {
+                btn.innerText = 'PAUSE SIMULATION';
+                btn.classList.remove('bg-aero-amber/20');
+                pushAlert('INFO', 'Simulation resumed');
+            }
+        }
+
+        function toggleAutoflight() {
+            state.autoFlight = !state.autoFlight;
+            const btn = document.getElementById('btn-autoflight');
+            if (state.autoFlight) {
+                btn.innerText = 'AUTO FLIGHT: ON';
+                btn.classList.remove('text-aero-dim');
+                btn.classList.add('text-aero-cyan');
+                pushAlert('SYSTEM', 'Autoflight guidance engaged (LNAV/VNAV)');
+            } else {
+                btn.innerText = 'AUTO FLIGHT: OFF';
+                btn.classList.remove('text-aero-cyan');
+                btn.classList.add('text-aero-dim');
+                pushAlert('CAUTION', 'Autoflight disengaged — Manual trim required');
+            }
+        }
+
+        function runSystemCheck() {
+            pushAlert('SYSTEM', 'Initiating full system diagnostic check sequence...');
+            const sysIds = ['sys-flt-ctrl', 'sys-nav', 'sys-hyd', 'sys-elec', 'sys-avionics', 'sys-comms', 'sys-gear'];
+            
+            sysIds.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.innerText = 'CHECKING...';
+                    el.className = 'bg-aero-amber/20 text-aero-amber text-xs border border-aero-amber/40 px-2 py-0.5 rounded animate-pulse';
+                }
+
+                setTimeout(() => {
+                    if (el) {
+                        el.innerText = 'NORMAL';
+                        el.className = 'bg-aero-green/20 text-aero-green text-xs border border-aero-green/40 px-2 py-0.5 rounded';
+                    }
+                    if (idx === sysIds.length - 1) {
+                        pushAlert('SYSTEM', 'System Diagnostic Completed — All 7/7 Subsystems Nominal');
+                    }
+                }, 800 + idx * 300);
+            });
+        }
+
+        function pushAlert(type, message) {
+            const timeStr = new Date().toISOString().substr(11, 8);
+            const alertText = document.getElementById('alert-text');
+            const alertBadge = document.getElementById('alert-badge');
+
+            if (alertText && alertBadge) {
+                alertText.innerText = message;
+                alertBadge.innerText = type;
+
+                if (type === 'CAUTION') {
+                    alertBadge.className = 'bg-aero-amber/20 text-aero-amber border border-aero-amber/40 px-2 py-0.5 rounded text-[10px] font-bold';
+                } else if (type === 'SYSTEM') {
+                    alertBadge.className = 'bg-aero-green/20 text-aero-green border border-aero-green/40 px-2 py-0.5 rounded text-[10px] font-bold';
+                } else {
+                    alertBadge.className = 'bg-aero-cyan/20 text-aero-cyan border border-aero-cyan/40 px-2 py-0.5 rounded text-[10px] font-bold';
+                }
+            }
+
+            logHistory.unshift({ time: timeStr, type: type, msg: message });
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const table = document.getElementById('log-table-body');
+            if (!table) return;
+
+            table.innerHTML = logHistory.map(log => `
+                <tr class="hover:bg-aero-panel/60">
+                    <td class="py-2 text-aero-dim">${log.time} UTC</td>
+                    <td class="py-2">
+                        <span class="${log.type === 'CAUTION' ? 'text-aero-amber' : log.type === 'SYSTEM' ? 'text-aero-green' : 'text-aero-cyan'} font-bold">${log.type}</span>
+                    </td>
+                    <td class="py-2 text-white">${log.msg}</td>
+                </tr>
+            `).join('');
+        }
+
+        function clearLogs() {
+            logHistory.length = 0;
+            renderLogs();
+            pushAlert('INFO', 'Event log table cleared by user');
+        }
+    </script>
+</body>
+</html>
